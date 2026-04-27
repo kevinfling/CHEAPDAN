@@ -60,6 +60,18 @@ Backward:  Jₜ = Pₜ|ₜ / Pₜ₊₁|ₜ
 
 Initial covariance is scaled by `(1−H)²` to encode Hurst-dependent prior uncertainty.
 
+### Multiplicative Sifting
+
+`cheapdan_log.h` implements multiplicative CEEMDAN via the log transform:
+
+```
+y     = log(x)
+imf_k = CEEMDAN(y)_k
+x̂     = exp( Σ_k imf_k )
+```
+
+Each returned IMF is exponentiated so the original signal is recovered by pointwise product rather than sum. A `cheap_ceemdan_log_shift` variant automatically shifts non-positive signals by `|min(x)| + δ` before taking the log.
+
 ### 2D Separable Extension
 
 `cheap_ceemdan_frac_2d` applies the 1D algorithm separably: first along rows (using `row_ctx`), then along columns of the resulting intermediate surface (using `col_ctx`). This follows Nunes et al. (2003) and Linderhed (2009) for 2D EMD. Each pass yields one IMF plane; the function iterates to extract up to `max_imfs` planes.
@@ -113,6 +125,14 @@ gcc -std=c99 -O3 -march=native examples/example_1d.c -Iinclude -I/path/to/cheap/
 | `cheap_ceemdan_is_imf` | `(const double* x, int n, double tol)` | `bool` | IMF stopping criterion |
 | `cheap_ceemdan_frac` | `(ctx, signal, n_ens, eps, H, imfs_out, n_imfs_out)` | `CHEAP_OK` / error | 1D fractional CEEMDAN |
 | `cheap_ceemdan_frac_2d` | `(row_ctx, col_ctx, sig, H, W, n_ens, eps, H_hurst, mode, param, imfs_out, max_imfs, n_imfs_out)` | `CHEAP_OK` / error | 2D separable CEEMDAN |
+
+### `cheapdan_log.h`
+
+| Function | Signature | Returns | Description |
+|----------|-----------|---------|-------------|
+| `cheap_ceemdan_log` | `(ctx, signal, n_ens, eps, H, imfs_out, n_imfs_out)` | `CHEAP_OK` / error | Multiplicative CEEMDAN (signal must be > 0) |
+| `cheap_ceemdan_log_shift` | `(ctx, signal, n_ens, eps, H, delta, imfs_out, n_imfs_out, offset_out)` | `CHEAP_OK` / error | Multiplicative CEEMDAN with automatic positivity shift |
+| `cheap_ceemdan_log_recon` | `(imfs, n_imfs, n, recon)` | — | Pointwise product reconstruction |
 
 ### `cheapdan_rts.h`
 

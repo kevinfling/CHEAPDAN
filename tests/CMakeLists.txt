@@ -1,4 +1,4 @@
-foreach(t test_weights test_ceemdan_1d test_ceemdan_2d test_rts)
+foreach(t test_weights test_ceemdan_1d test_ceemdan_2d test_rts test_log)
     add_executable(${t} ${t}.c)
     target_link_libraries(${t} PRIVATE cheapdan m)
     add_test(NAME ${t} COMMAND ${t})
