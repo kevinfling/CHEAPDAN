@@ -1,0 +1,3 @@
+add_executable(bench_ceemdan bench_ceemdan.c)
+target_link_libraries(bench_ceemdan PRIVATE cheapdan m)
+target_compile_definitions(bench_ceemdan PRIVATE _POSIX_C_SOURCE=199309L)
