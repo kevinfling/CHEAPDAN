@@ -67,8 +67,4 @@ if(CHEAPDAN_BUILD_BENCHMARKS)
 endif()
 
 # ---- Install ----------------------------------------------------------------
-install(FILES
-    include/cheapdan.h
-    include/cheapdan_rts.h
-    DESTINATION include
-)
+install(DIRECTORY include/ DESTINATION include)

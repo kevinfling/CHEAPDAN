@@ -48,7 +48,7 @@ The sifting step computes `E₁(x) = IDCT(wₖ ⊙ DCT(x))`. Four kernel choices
 
 ### RTS Smoother
 
-`cheapdan_rts.h` provides an optional Rauch-Tung-Striebel smoother for post-processing IMFs. Uses a scalar random-walk state model:
+`cheapdan/rts.h` provides a working optional Rauch-Tung-Striebel smoother for post-processing IMFs. Uses a scalar random-walk state model:
 
 ```
 Forward:   x̂ₜ|ₜ = x̂ₜ|ₜ₋₁ + Kₜ (yₜ − x̂ₜ|ₜ₋₁)
@@ -60,9 +60,11 @@ Backward:  Jₜ = Pₜ|ₜ / Pₜ₊₁|ₜ
 
 Initial covariance is scaled by `(1−H)²` to encode Hurst-dependent prior uncertainty.
 
+A full harmonic-oscillator model is planned in `cheapdan/rts_full.h` (currently a stub).
+
 ### Multiplicative Sifting
 
-`cheapdan_log.h` implements multiplicative CEEMDAN via the log transform:
+`cheapdan/log.h` implements multiplicative CEEMDAN via the log transform:
 
 ```
 y     = log(x)
@@ -71,6 +73,32 @@ x̂     = exp( Σ_k imf_k )
 ```
 
 Each returned IMF is exponentiated so the original signal is recovered by pointwise product rather than sum. A `cheap_ceemdan_log_shift` variant automatically shifts non-positive signals by `|min(x)| + δ` before taking the log.
+
+### Homomorphic Cepstral Preprocessing
+
+`cheapdan/homomorphic.h` implements the Φ operator for multiplicative noise suppression via the complex cepstrum:
+
+1. Forward FFT → log-magnitude + unwrapped phase
+2. Inverse FFT → complex cepstrum
+3. Parametric liftering to separate low/high quefrencies
+4. Forward FFT → modified log-spectrum
+5. Exponentiate + inverse FFT → filtered signal
+
+Adaptive quefrency cutoff is estimated from cumulative cepstral energy.
+
+### Fractional Differencing / Integration
+
+`cheapdan/fracdiff.h` provides spectral fractional calculus re-using CHEAP's DCT machinery:
+
+```
+D^d x = IDCT( |ξₖ|^d · DCT(x) )
+```
+
+- `d > 0`: differencing (high-pass emphasis)
+- `d < 0`: integration (low-pass emphasis)
+- `d = 0`: identity
+
+A 2D separable variant (`cheap_frac_diff_2d`) and a complex FFTW phase-preserving variant (`cheap_frac_diff_complex`) are also provided.
 
 ### 2D Separable Extension
 
@@ -94,7 +122,7 @@ apt install libfftw3-dev   # Debian/Ubuntu
 brew install fftw          # macOS
 ```
 
-CHEAP is fetched automatically via CMake FetchContent from `https://github.com/kevinfling/CHEAP` (tag `v0.2.0`).
+CHEAP is fetched automatically via CMake FetchContent from `https://github.com/kevinfling/CHEAP` (master branch).
 
 **Build options:**
 
@@ -126,7 +154,7 @@ gcc -std=c99 -O3 -march=native examples/example_1d.c -Iinclude -I/path/to/cheap/
 | `cheap_ceemdan_frac` | `(ctx, signal, n_ens, eps, H, imfs_out, n_imfs_out)` | `CHEAP_OK` / error | 1D fractional CEEMDAN |
 | `cheap_ceemdan_frac_2d` | `(row_ctx, col_ctx, sig, H, W, n_ens, eps, H_hurst, mode, param, imfs_out, max_imfs, n_imfs_out)` | `CHEAP_OK` / error | 2D separable CEEMDAN |
 
-### `cheapdan_log.h`
+### `cheapdan/log.h`
 
 | Function | Signature | Returns | Description |
 |----------|-----------|---------|-------------|
@@ -134,7 +162,7 @@ gcc -std=c99 -O3 -march=native examples/example_1d.c -Iinclude -I/path/to/cheap/
 | `cheap_ceemdan_log_shift` | `(ctx, signal, n_ens, eps, H, delta, imfs_out, n_imfs_out, offset_out)` | `CHEAP_OK` / error | Multiplicative CEEMDAN with automatic positivity shift |
 | `cheap_ceemdan_log_recon` | `(imfs, n_imfs, n, recon)` | — | Pointwise product reconstruction |
 
-### `cheapdan_rts.h`
+### `cheapdan/rts.h`
 
 Define `CHEAPDAN_RTS_IMPLEMENTATION` in exactly one translation unit before including.
 
@@ -142,6 +170,30 @@ Define `CHEAPDAN_RTS_IMPLEMENTATION` in exactly one translation unit before incl
 |----------|-----------|-------------|
 | `cheapdan_rts_init` | `(cheapdan_rts_t* rts, double H)` | Initialize smoother; sets P = (1−H)²·I |
 | `cheapdan_rts_smooth` | `(rts, imf_in, N, imf_smooth_out)` | Forward Kalman + backward RTS pass |
+
+### `cheapdan/homomorphic.h`
+
+Define `CHEAPDAN_HOMOMORPHIC_IMPLEMENTATION` in exactly one translation unit before including.
+
+| Function | Signature | Returns | Description |
+|----------|-----------|---------|-------------|
+| `cheapdan_homomorphic_init` | `(ctx, n, epsilon_rel)` | `CHEAP_OK` / error | Init FFTW plans and buffers |
+| `cheapdan_homomorphic_destroy` | `(ctx)` | — | Free all resources |
+| `cheapdan_homomorphic_filter` | `(ctx, x, n, y, cutoff_out)` | `CHEAP_OK` / error | Full Φ pipeline |
+| `cheapdan_complex_cepstrum` | `(ctx, x, cep, n, eps)` | — | Compute complex cepstrum |
+| `cheapdan_lifter_apply` | `(cep, n, n0, c, g_L, g_H)` | — | Parametric lifter |
+| `cheapdan_homomorphic_estimate_cutoff` | `(x, n, ctx)` | `double` | Adaptive quefrency cutoff |
+
+### `cheapdan/fracdiff.h`
+
+Define `CHEAPDAN_FRACDIFF_IMPLEMENTATION` in exactly one translation unit before including.
+
+| Function | Signature | Returns | Description |
+|----------|-----------|---------|-------------|
+| `cheap_frac_diff` | `(ctx, x, n, d, y)` | `CHEAP_OK` / error | 1D real DCT-based fractional diff |
+| `cheap_frac_integrate` | `(ctx, x, n, d, y)` | `CHEAP_OK` / error | 1D real fractional integration (sign flip) |
+| `cheap_frac_diff_complex` | `(hctx, x, n, d, y)` | `CHEAP_OK` / error | 1D complex FFTW phase-preserving diff |
+| `cheap_frac_diff_2d` | `(row_ctx, col_ctx, x, H, W, d, y)` | `CHEAP_OK` / error | 2D separable fractional diff |
 
 ---
 
@@ -192,6 +244,8 @@ Results from `./build/benchmarks/bench_ceemdan` (Release build, `-O3 -march=nati
 | 4096 | 100 | 12 | 2,219 | 1,846 |
 
 *Measured on ARM Cortex-A57 (Jetson TX2), Release build `-O3 -march=native`. Re-run `./build/benchmarks/bench_ceemdan` for your hardware.*
+
+Fractional differencing (`bench_fracdiff`) achieves ~18–20 M samples/sec for n=256–4096 on the same hardware. Homomorphic filtering (`bench_homomorphic`) achieves ~3.8–4.9 M samples/sec for n=256–1024.
 
 ---
 

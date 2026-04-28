@@ -1,5 +1,5 @@
 #define CHEAPDAN_RTS_IMPLEMENTATION
-#include "cheapdan_rts.h"
+#include "cheapdan/rts.h"
 #include "cheapdan.h"
 #include <stdio.h>
 #include <math.h>

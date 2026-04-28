@@ -1,4 +1,4 @@
-#include "cheapdan_log.h"
+#include "cheapdan/log.h"
 #include <stdio.h>
 #include <math.h>
 #include <string.h>
